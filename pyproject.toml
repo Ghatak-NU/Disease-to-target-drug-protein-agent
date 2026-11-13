@@ -1,8 +1,11 @@
 [project]
-name = "project-1"
-version = "0.1.0"
-requires-python = ">=3.14"
+name = "disease-to-target-agent"
+version = "0.2.0"
+description = "LLM agent that goes from a disease to candidate protein targets via PubMed and UniProtKB."
+readme = "README.md"
+requires-python = ">=3.11"
 dependencies = [
+    "fastapi>=0.115",
     "identifiers>=0.4.1",
     "ipykernel>=7.3.0",
     "langchain>=1.3.14",
@@ -11,4 +14,11 @@ dependencies = [
     "langsmith>=0.10.10",
     "python-dotenv>=1.2.2",
     "requests>=2.32.0",
+    "uvicorn[standard]>=0.30",
 ]
+
+[dependency-groups]
+dev = ["httpx>=0.27", "pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
