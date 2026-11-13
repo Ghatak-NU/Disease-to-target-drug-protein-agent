@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Disease-to-Target Agent</title>
+<style>
+  :root { --ink:#1d2433; --muted:#5b6475; --line:#dfe3ea; --accent:#0f6e5c; --bg:#f7f8fa; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; color:var(--ink); background:var(--bg); }
+  main { max-width:760px; margin:0 auto; padding:48px 20px 64px; }
+  h1 { font-size:1.6rem; margin:0 0 6px; }
+  .lede { color:var(--muted); margin:0 0 28px; }
+  form { display:flex; gap:10px; flex-wrap:wrap; }
+  input { flex:1 1 280px; padding:12px 14px; font:inherit; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  input:focus { outline:2px solid var(--accent); outline-offset:1px; }
+  button { padding:12px 20px; font:inherit; font-weight:600; color:#fff; background:var(--accent); border:0; border-radius:8px; cursor:pointer; }
+  button:disabled { opacity:.6; cursor:progress; }
+  .note { font-size:.85rem; color:var(--muted); margin-top:10px; }
+  #out { margin-top:28px; background:#fff; border:1px solid var(--line); border-radius:10px; padding:20px 22px; display:none; }
+  #out h2, #out h3 { font-size:1.05rem; margin:1.1em 0 .3em; }
+  #out a { color:var(--accent); }
+  .tools { font-size:.8rem; color:var(--muted); border-top:1px solid var(--line); margin-top:18px; padding-top:10px; }
+  .err { color:#a3261b; }
+  footer { margin-top:40px; font-size:.8rem; color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Disease-to-Target Agent</h1>
+  <p class="lede">Name a disease. An LLM agent searches recent PubMed papers, reads the abstracts and
+    checks up to three candidate protein targets against UniProtKB, citing every source.</p>
+
+  <form id="f">
+    <input id="disease" name="disease" placeholder="e.g. Parkinson's disease" minlength="2" maxlength="100" required>
+    <button id="go" type="submit">Find targets</button>
+  </form>
+  <p class="note">A run takes 10–40 seconds. Research use only: output is a hypothesis, not medical advice.</p>
+
+  <section id="out" aria-live="polite"></section>
+
+  <footer>LangGraph · Groq (Llama 3.1) · PubMed E-utilities · UniProtKB REST ·
+    <a href="/docs">API docs</a> ·
+    <a href="https://github.com/Ghatak-NU/Disease-to-target-drug-protein-agent">Source</a></footer>
+</main>
+<script>
+  const esc = s => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  // Minimal Markdown: headings, bold, links, bullets. Input is escaped first.
+  function md(text) {
+    return esc(text).split('\n').map(line => {
+      let l = line
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+        .replace(/(^|\s)(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+      if (/^#{1,2}\s/.test(l)) return '<h2>' + l.replace(/^#+\s/, '') + '</h2>';
+      if (/^#{3,}\s/.test(l)) return '<h3>' + l.replace(/^#+\s/, '') + '</h3>';
+      if (/^\s*[-*]\s/.test(l)) return '<div>• ' + l.replace(/^\s*[-*]\s/, '') + '</div>';
+      return l.trim() ? '<p>' + l + '</p>' : '';
+    }).join('');
+  }
+  const out = document.getElementById('out'), btn = document.getElementById('go');
+  document.getElementById('f').addEventListener('submit', async e => {
+    e.preventDefault();
+    const disease = document.getElementById('disease').value.trim();
+    btn.disabled = true; btn.textContent = 'Working…';
+    out.style.display = 'block'; out.innerHTML = '<p class="note">Searching PubMed and UniProt…</p>';
+    try {
+      const r = await fetch('/analyze', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({disease}) });
+      const body = await r.json();
+      if (!r.ok) throw new Error(typeof body.detail === 'string' ? body.detail : 'Invalid input');
+      out.innerHTML = md(body.report) + '<div class="tools">Tool calls: ' + esc(body.tools_used.join(' → ') || 'none') + '</div>';
+    } catch (err) {
+      out.innerHTML = '<p class="err">' + esc(err.message) + '</p>';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Find targets';
+    }
+  });
+</script>
+</body>
+</html>
